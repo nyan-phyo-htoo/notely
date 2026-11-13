@@ -1,4 +1,3 @@
-
 "use strict";
 
 // Access html element from js
@@ -19,6 +18,7 @@ const cancelButton = document.querySelector("#cancel-button");
 //Main Database
 let notes = [];
 let editingId = null;
+let searchTerm = "";
 // 1
 form.addEventListener("submit", (event) => {
   event.preventDefault();
@@ -49,7 +49,7 @@ function updateNote(id, title, content) {
 function createId() {
   return (
     window.crypto?.randomUUID?.() ??
-    ${Date.now()}-${Math.random().toString(36).slice(2)}
+    `${Date.now()}-${Math.random().toString(36).slice(2)}`
   );
 }
 
@@ -76,11 +76,11 @@ function createNote(title, content) {
 
 function handleNoteClick(event) {
   const button = event.target.closest("button[data-action]");
-    console.log(button);
+  console.log(button);
   if (!button) return;
 
   const article = button.closest("article[data-id]");
-  const id = article.dataset.id;
+  const id = article?.dataset.id;
   //   console.log(id);
   if (!id) return;
 
@@ -89,16 +89,32 @@ function handleNoteClick(event) {
       startEditing(id);
       break;
     case "pin":
-      togglePin();
+      togglePin(id);
       break;
     case "delete":
-      deleteNote();
+      deleteNote(id);
       break;
   }
 }
 
-function deleteNote(id){
-  
+function togglePin(id) {
+  console.log(notes);
+
+  const nextNotes = notes.map((note) =>
+    note.id === id ? { ...note, pinned: !note.pinned } : note,
+  );
+  commitNotes(nextNotes, "Pin status updated");
+  //  [...noteList.querySelectorAll("article")].find()
+}
+
+function deleteNote(id) {
+  if (!window.confirm("Delete this note?")) return;
+
+  const nextNotes = notes.filter((note) => note.id !== id);
+  commitNotes(nextNotes, "Note deleted");
+
+  if (editingId == id) resetForm();
+  else titleInput.focus();
 }
 
 function startEditing(id) {
@@ -134,16 +150,22 @@ function cancelEditing() {
 function renderNotes() {
   const fragment = document.createDocumentFragment();
 
-  console.log(notes);
-  for (const note of notes) {
+  const visibleNotes = getVisibleNotes();
+  // console.log(notes);
+  for (const note of visibleNotes) {
     const card = template.content.cloneNode(true);
     const article = card.querySelector("article");
     article.dataset.id = note.id;
+    article.classList.toggle("is-pinned", note.pinned);
+    console.log(note.pinned);
 
     card.querySelector(".note-title").textContent = note.title;
     card.querySelector(".note-content").textContent = note.content;
     card.querySelector(".note-date").textContent =
-      Updated:${new Date(note.updatedAt).toLocaleString()};
+      `Updated:${new Date(note.updatedAt).toLocaleString()}`;
+    const pinButton = card.querySelector('[data-action="pin"]');
+    pinButton.textContent = note.pinned ? "Unpin" : "Pin";
+
     fragment.append(card);
   }
   if (notes.length === 0) {
@@ -156,7 +178,39 @@ function renderNotes() {
   noteList.replaceChildren(fragment);
 }
 
+function getVisibleNotes() {
+  const visible = notes.filter((note) => {
+    const { title, content } = note;
+    const text = `${title} ${content}.toLowerCase()`;
+    const matchesSearch = text.includes(searchTerm);
+    return matchesSearch;
+  });
+  return visible;
+}
+
+function debounce(callback, delay = 1000) {
+  // Closure
+  let timerId;
+  return (...args) => {
+    console.log(...args);
+    clearTimeout(timerId);
+    timerId = setTimeout(() => callback(...args), delay);
+    console.log(timerId);
+  };
+}
+
+function handleSearch(event) {
+  searchTerm = event.target.value;
+  renderNotes();
+}
+
 noteList.addEventListener("click", handleNoteClick);
+
 cancelButton.addEventListener("click", cancelEditing);
 
 renderNotes();
+
+// titleInput.addEventListener("input", (e) => {
+//   console.log(e.target.value.trim());
+// });
+searchInput.addEventListener("input", debounce(handleSearch));
